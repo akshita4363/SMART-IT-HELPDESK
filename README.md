@@ -155,16 +155,10 @@ smart-it-helpdesk-servicenow/
 
 ---
 
-## 📝 Resume One-Liner
-
-> Built a scoped IT helpdesk app on ServiceNow to manage employee incidents and service requests. Automated ticket assignment, priority escalation via keyword detection, SLA tracking, and approval workflows using Business Rules, Client Scripts, UI Policies, and Flow Designer.
-
----
-
 ## 🙋 Author
 
 **Your Name**
-- 💼 [LinkedIn](https://linkedin.com/in/your-profile)
-- 🐙 [GitHub](https://github.com/your-username)
+- 💼 [LinkedIn](https://www.linkedin.com/in/boggavarapu-akshita-neha-3b611025a/)
+- 🐙 [GitHub](https://github.com/akshita4363/)
 
 > ⭐ Star this repo if you found it helpful!
