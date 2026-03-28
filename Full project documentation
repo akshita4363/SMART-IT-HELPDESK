@@ -1,0 +1,401 @@
+# 📄 Smart IT Helpdesk — Full Project Documentation
+
+---
+
+## 1. Project Overview
+
+**Application Name** : Smart IT Helpdesk
+**Platform**         : ServiceNow
+**Built Using**      : App Engine Studio
+**Type**             : Custom Scoped Application
+**Scope**            : x_1962921_smart_0
+
+This application was built to streamline IT support operations within an organization.
+Employees can raise IT issues as incidents or request new IT items as service requests.
+The system automatically manages, assigns, tracks, and resolves these tickets with
+minimal manual work from IT agents.
+
+---
+
+## 2. Problem Statement
+
+In most organizations, IT support is managed manually:
+- Employees email IT teams for issues
+- No ticket tracking system
+- No priority management
+- No SLA enforcement
+- No automated assignment
+
+This project solves all of these problems by building a complete automated
+IT helpdesk on ServiceNow.
+
+---
+
+## 3. Roles Created
+
+| Role  | Description                                      |
+|-------|--------------------------------------------------|
+| admin | Full control — can configure and manage everything |
+| agent | Can create, read, update, and resolve tickets    |
+| user  | Can only raise tickets and view their own tickets |
+
+---
+
+## 4. Tables Created
+
+### 4.1 Incident Table
+
+**Purpose** : For employees to raise IT issues (broken things)
+**Extended From** : Task table (inherited Number, Priority, State, Assigned To)
+**Auto Number Prefix** : SINC
+
+| Field       | Type                  | Description                        |
+|-------------|-----------------------|------------------------------------|
+| Caller      | Reference → sys_user  | Employee who raised the ticket     |
+| Category    | Choice                | Hardware / Software / Network      |
+| Priority    | Choice                | 1-Critical / 2-High / 3-Moderate / 4-Low |
+| State       | Choice                | New / In Progress / Resolved / Closed |
+| Assigned To | Reference → sys_user  | IT Agent handling the ticket       |
+| Description | String                | Detailed description of the issue  |
+
+**Category Choice Values:**
+
+| Value    | Label    |
+|----------|----------|
+| hardware | Hardware |
+| software | Software |
+| network  | Network  |
+
+**Priority Choice Values:**
+
+| Value | Label       |
+|-------|-------------|
+| 1     | 1-Critical  |
+| 2     | 2-High      |
+| 3     | 3-Moderate  |
+| 4     | 4-Low       |
+
+**State Choice Values:**
+
+| Value       | Label       |
+|-------------|-------------|
+| new         | New         |
+| in_progress | In Progress |
+| resolved    | Resolved    |
+| closed      | Closed      |
+
+---
+
+### 4.2 Service Request Table
+
+**Purpose** : For employees to request new IT items (new requirements)
+**Extended From** : Task table
+**Auto Number Prefix** : SREQ
+
+| Field           | Type                 | Description                         |
+|-----------------|----------------------|-------------------------------------|
+| Request Type    | Choice               | Laptop / Software / Access          |
+| Requested For   | Reference → sys_user | Employee who needs the item         |
+| Approval Status | Choice               | Pending / Approved / Rejected       |
+| Delivery Date   | Date                 | Expected delivery date              |
+
+**Request Type Choice Values:**
+
+| Value    | Label    |
+|----------|----------|
+| laptop   | Laptop   |
+| software | Software |
+| access   | Access   |
+
+**Approval Status Choice Values:**
+
+| Value    | Label    |
+|----------|----------|
+| pending  | Pending  |
+| approved | Approved |
+| rejected | Rejected |
+
+---
+
+## 5. Test Users Created
+
+| Full Name  | User ID    | Role  | Purpose                                  |
+|------------|------------|-------|------------------------------------------|
+| John User  | john.user  | user  | Represents an employee who raises tickets |
+| Mike Agent | mike.agent | agent | Represents IT agent who resolves tickets  |
+
+---
+
+## 6. Form Customization
+
+The Incident form layout was customized to show fields in a clean, organized two-column layout:
+
+```
+┌─────────────────┬─────────────────┐
+│ Number          │ Caller          │
+├─────────────────┼─────────────────┤
+│ Priority        │ State           │
+├─────────────────┼─────────────────┤
+│ Assigned To     │ Category        │
+└─────────────────┴─────────────────┘
+│ Description (full width)          │
+└───────────────────────────────────┘
+```
+
+---
+
+## 7. UI Policy
+
+### Policy: Make Description Mandatory for High Priority
+
+| Property  | Value                                  |
+|-----------|----------------------------------------|
+| Table     | Incident                               |
+| Condition | Priority is 2-High OR Priority is 1-Critical |
+| Action    | Description field → Mandatory = TRUE   |
+
+**Result:** When agent selects High or Critical priority, the Description
+field gets a red asterisk (*) and the form cannot be submitted without
+filling in the Description field.
+
+---
+
+## 8. Business Rules
+
+### Rule 1 — Auto Assign Network Incidents
+
+| Property  | Value                         |
+|-----------|-------------------------------|
+| Table     | Incident                      |
+| When      | Before Insert and Update      |
+| Condition | Category = network            |
+
+**Logic:**
+- Queries sys_user table for user with user_name = 'mike.agent'
+- Sets assigned_to field to Mike Agent's sys_id
+- Every Network ticket is automatically routed to Mike Agent
+
+---
+
+### Rule 2 — Set Default Priority
+
+| Property  | Value              |
+|-----------|--------------------|
+| Table     | Incident           |
+| When      | Before Insert only |
+| Condition | Priority is empty  |
+
+**Logic:**
+- Checks if priority field is nil/empty
+- If empty, sets priority = 3 (Moderate)
+- Ensures every ticket always has a priority value
+
+---
+
+### Rule 3 — Keyword Based Priority Escalation (Bonus Feature)
+
+| Property  | Value                    |
+|-----------|--------------------------|
+| Table     | Incident                 |
+| When      | Before Insert and Update |
+| Condition | Always runs              |
+
+**Logic:**
+- Reads the Description field text
+- Converts to lowercase for comparison
+- Scans for urgency keywords:
+  - "urgent", "critical", "immediately", "asap" → Sets Priority = 1 (Critical)
+  - "high", "important", "severe" → Sets Priority = 2 (High)
+
+**Example:**
+```
+Description: "My internet is not working urgently, please fix asap"
+Result: System detects "urgently" and "asap" → Auto sets Priority = Critical
+```
+
+---
+
+## 9. Client Scripts
+
+### Script 1 — Priority Alert Popup
+
+| Property | Value    |
+|----------|----------|
+| Table    | Incident |
+| Type     | onChange |
+| Field    | Priority |
+
+**Behavior:**
+- When Priority = 2 (High) → Shows alert: "⚠️ High Priority Ticket! Please fill all details carefully."
+- When Priority = 1 (Critical) → Shows alert: "🚨 Critical Priority Ticket! Immediate attention required!"
+
+---
+
+### Script 2 — Auto Fill Category
+
+| Property | Value    |
+|----------|----------|
+| Table    | Incident |
+| Type     | onChange |
+| Field    | Category |
+
+**Behavior:**
+- When Category = Laptop → Auto sets Category = Hardware, shows info message
+- When Category = Printer → Auto sets Category = Hardware, shows info message
+- When Category = Email → Auto sets Category = Software, shows info message
+
+---
+
+## 10. Flow Designer — Service Request Approval Flow
+
+**Flow Name** : Service Request Approval Flow
+**Trigger**   : Record Created on Service Request table
+
+```
+FLOW STEPS:
+───────────────────────────────────────────
+Step 1 → Ask For Approval
+         • Approval Field : Approval Status
+         • Approvers      : Manager of Requested For user
+         • Rule           : Anyone approves
+         • Waits for response before continuing
+
+Step 2 → Send Email Notification
+         • To      : Requested For (the employee)
+         • Subject : Your Service Request has been created
+         • Body    : Request received, pending approval.
+                     Our team will review shortly.
+───────────────────────────────────────────
+```
+
+---
+
+## 11. Email Notification
+
+**Notification Name** : Incident Created Notification
+
+| Property  | Value                                   |
+|-----------|-----------------------------------------|
+| Table     | Incident                                |
+| Trigger   | Record inserted (new ticket created)    |
+| Recipient | Caller (person who raised the ticket)   |
+
+**Email Template:**
+```
+Subject : Your Incident has been created successfully
+
+Body    :
+Dear ${caller},
+
+Your IT incident has been successfully registered in our system.
+
+Incident Details:
+- Incident Number : ${number}
+- Priority        : ${priority}
+- Category        : ${category}
+- Current Status  : ${state}
+
+Our IT team will look into this shortly.
+Please use the incident number for future reference.
+
+Thank you,
+IT Helpdesk Team
+```
+
+---
+
+## 12. SLA (Service Level Agreements)
+
+SLAs define the maximum time allowed to resolve a ticket based on its priority.
+The timer starts automatically when a ticket is created.
+
+| SLA Name                    | Priority   | Duration | Target     |
+|-----------------------------|------------|----------|------------|
+| High Priority Incident SLA  | 2-High     | 4 Hours  | Resolution |
+| Medium Priority Incident SLA| 3-Moderate | 8 Hours  | Resolution |
+| Low Priority Incident SLA   | 4-Low      | 24 Hours | Resolution |
+
+**SLA Status:**
+- ✅ SLA Met — Ticket resolved within the time limit
+- ❌ SLA Breached — Ticket not resolved within the time limit
+
+---
+
+## 13. Reports
+
+| Report Name                | Chart Type | Groups By | Purpose                              |
+|----------------------------|------------|-----------|--------------------------------------|
+| Open vs Closed Incidents   | Pie Chart  | State     | Shows ratio of open to closed tickets |
+| Incidents by Priority      | Bar Chart  | Priority  | Shows volume at each priority level  |
+| Incidents by Category      | Bar Chart  | Category  | Shows which category has most issues |
+
+---
+
+## 14. Complete End-to-End Scenarios
+
+### Scenario 1 — Network Incident with Urgent Keyword
+
+```
+Step 1 : John User opens a new Incident form
+Step 2 : Types Description = "internet not working urgently"
+Step 3 : Business Rule 3 runs → detects "urgently"
+         → Auto sets Priority = 1 (Critical)
+Step 4 : Client Script runs → Priority changed to Critical
+         → Alert popup: "🚨 Critical Priority Ticket!"
+Step 5 : UI Policy runs → Priority = Critical
+         → Description field becomes MANDATORY
+Step 6 : John selects Category = Network
+Step 7 : John submits the form
+Step 8 : Business Rule 1 runs → Category = Network
+         → Auto assigns ticket to Mike Agent
+Step 9 : Auto number generated → SINC0001001
+Step 10: SLA timer starts → Must resolve in 4 hours
+Step 11: Notification sent → John receives email with ticket details
+Step 12: Mike Agent logs in, sees the ticket assigned to him
+Step 13: Mike resolves the issue → sets State = Resolved
+Step 14: Ticket → Closed ✅
+```
+
+---
+
+### Scenario 2 — Service Request for Laptop
+
+```
+Step 1 : John User creates a new Service Request
+         Request Type = Laptop
+         Requested For = John User
+Step 2 : Flow Designer trigger fires → record created
+Step 3 : Flow Step 1 → Approval request sent to manager
+         Approval Status = Pending
+Step 4 : Flow Step 2 → Email sent to John
+         "Your service request is pending approval"
+Step 5 : Manager reviews and approves the request
+         Approval Status → Approved
+Step 6 : IT Agent fulfills the request
+         Delivery Date is set
+Step 7 : Laptop delivered to John ✅
+```
+
+---
+
+## 15. What I Learned
+
+- How to build a complete scoped application on ServiceNow from scratch
+- Difference between server-side (Business Rules) and client-side (Client Scripts) scripting
+- How UI Policies control form behavior without writing code
+- How Flow Designer automates complex workflows visually
+- How SLAs enforce time-based accountability in ticketing systems
+- How notifications keep users informed automatically
+- How to use GlideRecord API to query and update ServiceNow tables
+- How to extend standard tables (Task) to inherit fields
+
+---
+
+## 16. Interview One-Liner
+
+> "I built a complete Smart IT Helpdesk on ServiceNow with two custom tables —
+> Incident and Service Request. The system automatically assigns Network tickets
+> to the IT agent, detects urgency keywords in descriptions to set priority,
+> enforces mandatory fields through UI Policies, sends email notifications,
+> tracks SLA timers, and manages service request approvals through an automated
+> Flow Designer workflow."
